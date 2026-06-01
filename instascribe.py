@@ -24,7 +24,7 @@ def fix_encoding(text):
     if text is None: return ""
     try:
         return text.encode('latin1').decode('utf8')
-    except:
+    except (UnicodeDecodeError, UnicodeEncodeError):
         return text
 
 def clean_url(url):
@@ -44,7 +44,7 @@ def clean_caption(text):
     spam_phrases = ["follow @", "dm for", "credit:", "tag a", "repost", "link in bio", "subscribe"]
     lines = text.split('\n')
     cleaned_lines = [l for l in lines if not any(p in l.lower() for p in spam_phrases)]
-    return " ".join(cleaned_lines).strip()
+    return " ".join(l.strip() for l in cleaned_lines if l.strip())
 
 def find_conversations(root_path):
     """Recursively scans for Instagram message JSON files and extracts metadata."""
@@ -63,7 +63,7 @@ def find_conversations(root_path):
                         'folder_id': os.path.basename(root),
                         'participants': participants
                     })
-            except:
+            except (json.JSONDecodeError, IOError, KeyError):
                 continue
     return sorted(valid_folders, key=lambda x: x['title'].lower())
 
@@ -158,7 +158,14 @@ def process_single_conversation(conv, user_name, self_aware_input, meta_choice, 
             reply_context = f"(Reply to {r_sender}: \"{r_content}\") ↳ "
 
         reactions = msg.get('reactions', [])
-        reaction_str = f" [Reactions: {', '.join([f'{fix_encoding(r.get('reaction'))} by {fix_encoding(r.get('actor'))}' for r in reactions])}]" if reactions else ""
+        if reactions:
+            reaction_parts = [
+                "{} by {}".format(fix_encoding(r.get('reaction', '')), fix_encoding(r.get('actor', '')))
+                for r in reactions
+            ]
+            reaction_str = f" [Reactions: {', '.join(reaction_parts)}]"
+        else:
+            reaction_str = ""
 
         # Conversational Grouping
         if sender_raw == last_sender and (ts_ms - last_timestamp) < GROUPING_THRESHOLD_MS:
@@ -208,7 +215,7 @@ def main():
         idx = input("\nEnter number(s) (e.g. '1,3'): ")
         try:
             to_process = [conversations[int(x.strip())-1] for x in idx.split(',')]
-        except:
+        except (ValueError, IndexError):
             print("Invalid selection."); return
 
     print("\n--- GLOBAL SETTINGS ---")
@@ -216,12 +223,15 @@ def main():
     user_name = input("Enter YOUR full name: ").strip() if self_aware_input == 'y' else ""
     print("\nMetadata Density: [1] Full, [2] Optimized, [3] Minimal, [4] None")
     meta_choice = input("Select (1-4): ").strip()
+    while meta_choice not in ('1', '2', '3', '4'):
+        meta_choice = input("Invalid choice. Select (1-4): ").strip()
     meta_labels = {"1": "Full", "2": "Optimized", "3": "Minimal", "4": "None"}
 
     print("\n--- OUTPUT SELECTION ---")
     output_path_input = input("Target folder path (ENTER for default): ").strip().strip('"').strip("'")
     global_output_path = os.path.normpath(output_path_input) if output_path_input else None
-    if global_output_path and not os.path.exists(global_output_path): os.makedirs(global_output_path)
+    if global_output_path:
+        os.makedirs(global_output_path, exist_ok=True)
 
     print(f"\nProcessing {len(to_process)} conversations...")
     for conv in to_process:

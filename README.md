@@ -31,6 +31,7 @@ To use Instascribe, you must request a **JSON** export from the **[Official Inst
 2. Run the script:
    ```bash
    python3 instascribe.py
+   ```
 3. Paste the path to your main inbox folder.
 4. Select the specific conversation(s) from the generated list.
 5. Choose your output folder (press Enter to save processed files in their original folders).
