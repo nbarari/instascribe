@@ -34,6 +34,7 @@ def clean_url(url):
 
 def format_duration(seconds):
     """Converts call duration to readable format or identifies missed calls."""
+    seconds = int(seconds)
     if seconds == 0:
         return "MISSED/CANCELLED"
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
@@ -131,7 +132,7 @@ def process_single_conversation(conv, user_name, self_aware_input, meta_choice, 
             s_label = "SHARED_LINK"
             if "/stories/" in link: s_label = "STORY_CONTEXT"
             elif "giphy.com" in link:
-                slug = link.split('/')[-1].replace('-', ' ').split(' ')[0] if '/' in link else "visual"
+                slug = (link.split('/')[-1].replace('-', ' ').split(' ')[0] if '/' in link else '') or 'visual'
                 s_label = f"GIF_SENT (Theme: {slug})"
 
             if meta_choice == '1': # Full
@@ -148,6 +149,7 @@ def process_single_conversation(conv, user_name, self_aware_input, meta_choice, 
                 content = f"[{s_label}] {content}".strip()
 
         if msg.get('photos'): content = f"[MEDIA: Photo] {content}".strip()
+        if msg.get('videos'): content = f"[MEDIA: Video] {content}".strip()
         if msg.get('is_edited'): content += " (EDITED)"
         
         reply_data = msg.get('reply_to_source')
@@ -183,7 +185,7 @@ def process_single_conversation(conv, user_name, self_aware_input, meta_choice, 
     final_path = os.path.join(final_dir, output_filename)
 
     with open(final_path, 'w', encoding='utf-8') as f:
-        f.write(f"SYSTEM: INSTASCRIBE DM DATASET\n")
+        f.write("SYSTEM: INSTASCRIBE DM DATASET\n")
         f.write(f"GENERATED_ON: {datetime.now().strftime('%Y-%m-%d')}\n")
         f.write(f"FOLDER_SOURCE: {folder_id_name}\n")
         f.write(f"OWNER_IDENTITY: {user_name if user_name else 'Not Specified'}\n")
@@ -207,6 +209,8 @@ def main():
 
     print("\n--- SELECTION ---\n [A] Process ALL\n [S] Select specific")
     choice = input("Choice (A/S): ").lower().strip()
+    while choice not in ('a', 's'):
+        choice = input("Invalid choice. Enter A or S: ").lower().strip()
     to_process = conversations if choice == 'a' else []
     if choice == 's':
         print("\nAvailable Conversations:")
